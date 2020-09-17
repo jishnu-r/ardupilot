@@ -33,9 +33,12 @@
 #include <SITL/SIM_AirSim.h>
 #include <SITL/SIM_Scrimmage.h>
 #include <SITL/SIM_Webots.h>
+#include <SITL/SIM_JSON.h>
 
 #include <signal.h>
 #include <stdio.h>
+#include <time.h>
+#include <sys/time.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -93,6 +96,7 @@ void SITL_State::_usage(void)
            "\t--sim-port-in PORT       set port num for simulator in\n"
            "\t--sim-port-out PORT      set port num for simulator out\n"
            "\t--irlock-port PORT       set port num for irlock\n"
+           "\t--start-time TIMESTR     set simulation start time in UNIX timestamp"
         );
 }
 
@@ -146,7 +150,7 @@ static const struct {
     { "airsim",             AirSim::create},
     { "scrimmage",          Scrimmage::create },
     { "webots",             Webots::create },
-
+    { "JSON",               JSON::create },
 };
 
 void SITL_State::_set_signal_handlers(void) const
@@ -197,6 +201,12 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
     uint16_t simulator_port_out = SIM_OUT_PORT;
     _irlock_port = IRLOCK_PORT;
 
+    // Set default start time to the real system time.
+    // This will be overwritten if argument provided.
+    static struct timeval first_tv;
+    gettimeofday(&first_tv, nullptr);
+    time_t start_time_UTC = first_tv.tv_sec;
+
     enum long_options {
         CMDLINE_GIMBAL = 1,
         CMDLINE_FGVIEW,
@@ -217,6 +227,7 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         CMDLINE_SIM_PORT_IN,
         CMDLINE_SIM_PORT_OUT,
         CMDLINE_IRLOCK_PORT,
+        CMDLINE_START_TIME,
     };
 
     const struct GetOptLong::option options[] = {
@@ -252,6 +263,7 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         {"sim-port-in",     true,   0, CMDLINE_SIM_PORT_IN},
         {"sim-port-out",    true,   0, CMDLINE_SIM_PORT_OUT},
         {"irlock-port",     true,   0, CMDLINE_IRLOCK_PORT},
+        {"start-time",      true,   0, CMDLINE_START_TIME},
         {0, false, 0, 0}
     };
 
@@ -370,6 +382,9 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         case CMDLINE_IRLOCK_PORT:
             _irlock_port = atoi(gopt.optarg);
             break;
+        case CMDLINE_START_TIME:
+            start_time_UTC = atoi(gopt.optarg);
+            break;
         default:
             _usage();
             exit(1);
@@ -414,6 +429,11 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         exit(1);
     }
 
+    if (AP::sitl()) {
+        // Set SITL start time.
+        AP::sitl()->start_time_UTC = start_time_UTC;
+    }
+
     fprintf(stdout, "Starting sketch '%s'\n", SKETCH);
 
     if (strcmp(SKETCH, "ArduCopter") == 0) {
@@ -421,8 +441,8 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
         if (_framerate == 0) {
             _framerate = 200;
         }
-    } else if (strcmp(SKETCH, "APMrover2") == 0) {
-        _vehicle = APMrover2;
+    } else if (strcmp(SKETCH, "Rover") == 0) {
+        _vehicle = Rover;
         if (_framerate == 0) {
             _framerate = 50;
         }

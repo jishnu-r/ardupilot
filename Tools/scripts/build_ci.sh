@@ -47,7 +47,7 @@ function run_autotest() {
         popd
         mavproxy_installed=1
         # now uninstall the version of pymavlink pulled in by MAVProxy deps:
-        pip uninstall -y pymavlink
+        python -m pip uninstall -y pymavlink
     fi
     if [ $pymavlink_installed -eq 0 ]; then
         echo "Installing pymavlink"
@@ -74,36 +74,40 @@ function run_autotest() {
 
 for t in $CI_BUILD_TARGET; do
     # special case for SITL testing in CI
+    if [ "$t" == "sitltest-heli" ]; then
+        run_autotest "Heli" "build.Helicopter" "test.Helicopter"
+        continue
+    fi
     if [ "$t" == "sitltest-copter-tests1" ]; then
-        run_autotest "Copter" "build.ArduCopter" "fly.ArduCopterTests1"
+        run_autotest "Copter" "build.Copter" "test.CopterTests1"
         continue
     fi
     if [ "$t" == "sitltest-copter-tests2" ]; then
-        run_autotest "Copter" "build.ArduCopter" "fly.ArduCopterTests2"
+        run_autotest "Copter" "build.Copter" "test.CopterTests2"
         continue
     fi
     if [ "$t" == "sitltest-plane" ]; then
-        run_autotest "Plane" "build.ArduPlane" "fly.ArduPlane"
+        run_autotest "Plane" "build.Plane" "test.Plane"
         continue
     fi
     if [ "$t" == "sitltest-quadplane" ]; then
-        run_autotest "QuadPlane" "build.ArduPlane" "fly.QuadPlane"
+        run_autotest "QuadPlane" "build.Plane" "test.QuadPlane"
         continue
     fi
     if [ "$t" == "sitltest-rover" ]; then
-        run_autotest "Rover" "build.APMrover2" "drive.APMrover2"
+        run_autotest "Rover" "build.Rover" "test.Rover"
         continue
     fi
     if [ "$t" == "sitltest-tracker" ]; then
-        run_autotest "Tracker" "build.AntennaTracker" "test.AntennaTracker"
+        run_autotest "Tracker" "build.Tracker" "test.Tracker"
         continue
     fi
     if [ "$t" == "sitltest-balancebot" ]; then
-        run_autotest "BalanceBot" "build.APMrover2" "drive.BalanceBot"
+        run_autotest "BalanceBot" "build.Rover" "test.BalanceBot"
         continue
     fi
     if [ "$t" == "sitltest-sub" ]; then
-        run_autotest "Sub" "build.ArduSub" "dive.ArduSub"
+        run_autotest "Sub" "build.Sub" "test.Sub"
         continue
     fi
 
@@ -139,7 +143,7 @@ for t in $CI_BUILD_TARGET; do
         $waf AP_Periph
         continue
     fi
-    
+
     if [ "$t" == "CubeOrange-bootloader" ]; then
         echo "Building CubeOrange bootloader"
         $waf configure --board CubeOrange --bootloader
@@ -150,7 +154,7 @@ for t in $CI_BUILD_TARGET; do
 
     if [ "$t" == "stm32f7" ]; then
         echo "Building mRoX21-777/"
-        $waf configure --board mRoX21-777
+        $waf configure --Werror --board mRoX21-777
         $waf clean
         $waf plane
         continue
@@ -171,12 +175,19 @@ for t in $CI_BUILD_TARGET; do
         $waf plane
         continue
     fi
-    
+
     if [ "$t" == "iofirmware" ]; then
         echo "Building iofirmware"
         $waf configure --board iomcu
         $waf clean
         $waf iofirmware
+        continue
+    fi
+
+    if [ "$t" == "navigator" ]; then
+        echo "Building navigator"
+        $waf configure --board navigator --toolchain=arm-linux-musleabihf
+        $waf sub --static
         continue
     fi
 
@@ -197,13 +208,14 @@ for t in $CI_BUILD_TARGET; do
         $waf all
         ccache -s && ccache -z
 
-        if [[ $t == linux ]]; then
+        if [[ $t == "linux" ]]; then
             $waf check
         fi
+        continue
     fi
 done
 
-python Tools/autotest/param_metadata/param_parse.py --vehicle APMrover2
+python Tools/autotest/param_metadata/param_parse.py --vehicle Rover
 python Tools/autotest/param_metadata/param_parse.py --vehicle AntennaTracker
 python Tools/autotest/param_metadata/param_parse.py --vehicle ArduCopter
 python Tools/autotest/param_metadata/param_parse.py --vehicle ArduPlane
